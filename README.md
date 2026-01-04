@@ -37,7 +37,7 @@ Viewers team up to defeat a boss!
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/tiktok-live-games.git
+git clone https://github.com/vamnguyen/tiktok-live-games.git
 cd tiktok-live-games
 
 # Install dependencies
