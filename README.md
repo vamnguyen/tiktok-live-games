@@ -2,7 +2,8 @@
 
 An open-source platform that creates interactive game overlays for TikTok Live streams. Viewers can play games by typing commands in chat!
 
-![Dashboard](https://via.placeholder.com/800x400?text=Dashboard+Preview)
+<img width="3020" height="1654" alt="image" src="https://github.com/user-attachments/assets/79fcf4cc-c1fa-4d5c-a0fd-5d9d3d1816ac" />
+
 
 ## ✨ Features
 
