@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TikTok Live Games - Platform SaaS cho Streamers</title>
+    <title>TikTok Live Games - SaaS Platform for Streamers</title>
     <meta
       name="description"
-      content="Tạo game overlay cho TikTok Live của bạn. Tăng tương tác với viewers qua các mini-games real-time."
+      content="Create game overlays for your TikTok Live. Increase viewer engagement with real-time mini-games."
     />
 
     <!-- Fonts -->
@@ -44,10 +44,10 @@
          ========================================== -->
     <section class="hero">
       <div class="container">
-        <h1 class="hero-title">Tạo Game Overlay cho TikTok Live</h1>
+        <h1 class="hero-title">Create Game Overlays for TikTok Live</h1>
         <p class="hero-subtitle">
-          Biến livestream của bạn thành trải nghiệm tương tác tuyệt vời. Viewers
-          có thể chơi game qua chat trong khi bạn stream!
+          Turn your livestream into an amazing interactive experience. Viewers
+          can play games via chat while you stream!
         </p>
       </div>
     </section>
@@ -57,23 +57,23 @@
          ========================================== -->
     <main class="container">
       <div class="glass-card">
-        <!-- Step 1: Nhập Username -->
+        <!-- Step 1: Input Username -->
         <div class="form-group">
           <label for="username" class="form-label">
-            📱 TikTok Username của bạn
+            📱 Your TikTok Username
           </label>
           <input
             type="text"
             id="username"
             class="form-input"
-            placeholder="Ví dụ: streamer_vn (không cần @)"
+            placeholder="Ex: streamer_vn (no @ needed)"
             autocomplete="off"
           />
         </div>
 
-        <!-- Step 2: Chọn Game -->
+        <!-- Step 2: Select Game -->
         <div class="form-group" id="games">
-          <label class="form-label"> 🎯 Chọn Game cho Stream </label>
+          <label class="form-label"> 🎯 Select Game for Stream </label>
           <div class="game-grid">
             <!-- Boss Raid Game Card -->
             <div class="game-card selected" data-game="boss-raid">
@@ -81,8 +81,8 @@
               <div class="game-card-icon">👹</div>
               <h3 class="game-card-title">Boss Raid</h3>
               <p class="game-card-desc">
-                Viewers cùng team lại đánh boss! Chat "join" để tham gia, "hit"
-                để tấn công. Tặng gift để kích hoạt Ultimate!
+                Viewers team up to defeat the boss! Chat "join" to participate,
+                "hit" to attack. Send gifts to trigger Ultimate!
               </p>
             </div>
 
@@ -91,7 +91,7 @@
               <div class="game-card-icon">🏆</div>
               <h3 class="game-card-title">Battle Royale</h3>
               <p class="game-card-desc">
-                Sắp ra mắt! Viewers chiến đấu với nhau để giành chiến thắng.
+                Coming Soon! Viewers battle each other for victory.
               </p>
             </div>
 
@@ -100,7 +100,7 @@
               <div class="game-card-icon">🎰</div>
               <h3 class="game-card-title">Lucky Wheel</h3>
               <p class="game-card-desc">
-                Sắp ra mắt! Vòng quay may mắn cho viewers.
+                Coming Soon! Lucky wheel for viewers.
               </p>
             </div>
           </div>
@@ -109,13 +109,13 @@
         <!-- Step 3: Generate Button -->
         <div class="form-group">
           <button type="button" id="generateBtn" class="btn btn-primary">
-            ✨ Tạo Link Game Overlay
+            ✨ Generate Game Link
           </button>
         </div>
 
-        <!-- Step 4: Output Section (ẩn cho đến khi generate) -->
+        <!-- Step 4: Output Section (hidden until generated) -->
         <div class="output-section" id="outputSection">
-          <p class="output-label">🔗 Link Overlay cho OBS / TikTok Studio:</p>
+          <p class="output-label">🔗 Overlay Link for OBS / TikTok Studio:</p>
           <div class="output-wrapper">
             <input type="text" id="outputUrl" class="output-input" readonly />
             <button type="button" id="copyBtn" class="btn btn-copy">
@@ -131,7 +131,7 @@
               border-left: 4px solid var(--accent-cyan);
             "
           >
-            <strong style="color: var(--accent-cyan)">💡 Hướng dẫn:</strong>
+            <strong style="color: var(--accent-cyan)">💡 Instructions:</strong>
             <ol
               style="
                 margin-top: 10px;
@@ -139,12 +139,12 @@
                 color: var(--text-secondary);
               "
             >
-              <li>Copy link ở trên</li>
-              <li>Mở OBS hoặc TikTok Studio</li>
-              <li>Thêm Browser Source mới</li>
-              <li>Paste link vào URL</li>
-              <li>Đặt kích thước: 1920x1080 (hoặc tùy ý)</li>
-              <li>Bắt đầu livestream và thông báo cho viewers chat "join"!</li>
+              <li>Copy the link above</li>
+              <li>Open OBS or TikTok Studio</li>
+              <li>Add a new Browser Source</li>
+              <li>Paste the link into the URL field</li>
+              <li>Set dimensions: 1920x1080 (or custom)</li>
+              <li>Start livestreaming and tell viewers to chat "join"!</li>
             </ol>
           </div>
         </div>
@@ -157,14 +157,14 @@
     <footer class="footer">
       <div class="container">
         <p>
-          TikTok Live Games v2 &copy; 2026 | Made with 💖 for Vietnamese
-          Streamers
+          TikTok Live Games v2 &copy; 2026 | Made with 💖 for Streamers
+          Worldwide
         </p>
       </div>
     </footer>
 
     <!-- Toast Notification -->
-    <div class="toast" id="toast">✅ Đã copy link!</div>
+    <div class="toast" id="toast">✅ Link copied!</div>
 
     <!-- Scripts -->
     <script src="/js/dashboard.js"></script>

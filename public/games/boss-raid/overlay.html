@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Boss Raid - TikTok Live Game</title>
 
     <!-- 
-        OVERLAY PAGE CHO OBS / TIKTOK STUDIO
+        OBS / TIKTOK STUDIO OVERLAY PAGE
         
-        QUAN TRỌNG:
-        - Background trong suốt để dùng làm overlay
-        - Canvas full screen
-        - Kết nối Socket.io để nhận events từ TikTok Live
+        IMPORTANT:
+        - Transparent background for use as overlay
+        - Full screen canvas
+        - Socket.io connection to receive TikTok Live events
     -->
 
     <style>
@@ -27,7 +27,7 @@
         width: 100%;
         height: 100%;
         overflow: hidden;
-        /* Background trong suốt cho OBS Browser Source */
+        /* Transparent background for OBS Browser Source */
         background: transparent;
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
       }
@@ -246,7 +246,7 @@
       <!-- Connection Status -->
       <div id="statusIndicator">
         <div id="statusDot"></div>
-        <span id="statusText">Đang kết nối...</span>
+        <span id="statusText">Connecting...</span>
       </div>
 
       <!-- Leaderboard -->
@@ -261,13 +261,13 @@
               font-size: 14px;
             "
           >
-            Chưa có người chơi
+            Waiting for players
           </p>
         </div>
       </div>
 
       <!-- Join Hint -->
-      <div id="joinHint">💬 Chat "join" để tham gia | "hit" để tấn công!</div>
+      <div id="joinHint">💬 Chat "join" to play | "hit" to attack!</div>
     </div>
 
     <!-- Socket.io Client -->
