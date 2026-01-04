@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TikTok Live Games - Platform SaaS cho Streamers</title>
+    <meta
+      name="description"
+      content="Tạo game overlay cho TikTok Live của bạn. Tăng tương tác với viewers qua các mini-games real-time."
+    />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fira+Code&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/css/styles.css" />
+  </head>
+  <body>
+    <!-- ==========================================
+         HEADER
+         ========================================== -->
+    <header class="header">
+      <div class="container">
+        <div class="header-content">
+          <a href="/" class="logo">
+            <div class="logo-icon">🎮</div>
+            <span>TikTok Live Games</span>
+          </a>
+          <nav class="nav-links">
+            <a href="#games" class="nav-link">Games</a>
+            <a href="/api/stats" class="nav-link" target="_blank">Stats</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==========================================
+         HERO SECTION
+         ========================================== -->
+    <section class="hero">
+      <div class="container">
+        <h1 class="hero-title">Tạo Game Overlay cho TikTok Live</h1>
+        <p class="hero-subtitle">
+          Biến livestream của bạn thành trải nghiệm tương tác tuyệt vời. Viewers
+          có thể chơi game qua chat trong khi bạn stream!
+        </p>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         MAIN DASHBOARD CARD
+         ========================================== -->
+    <main class="container">
+      <div class="glass-card">
+        <!-- Step 1: Nhập Username -->
+        <div class="form-group">
+          <label for="username" class="form-label">
+            📱 TikTok Username của bạn
+          </label>
+          <input
+            type="text"
+            id="username"
+            class="form-input"
+            placeholder="Ví dụ: streamer_vn (không cần @)"
+            autocomplete="off"
+          />
+        </div>
+
+        <!-- Step 2: Chọn Game -->
+        <div class="form-group" id="games">
+          <label class="form-label"> 🎯 Chọn Game cho Stream </label>
+          <div class="game-grid">
+            <!-- Boss Raid Game Card -->
+            <div class="game-card selected" data-game="boss-raid">
+              <span class="game-card-badge">HOT</span>
+              <div class="game-card-icon">👹</div>
+              <h3 class="game-card-title">Boss Raid</h3>
+              <p class="game-card-desc">
+                Viewers cùng team lại đánh boss! Chat "join" để tham gia, "hit"
+                để tấn công. Tặng gift để kích hoạt Ultimate!
+              </p>
+            </div>
+
+            <!-- Coming Soon Card -->
+            <div class="game-card" style="opacity: 0.5; cursor: not-allowed">
+              <div class="game-card-icon">🏆</div>
+              <h3 class="game-card-title">Battle Royale</h3>
+              <p class="game-card-desc">
+                Sắp ra mắt! Viewers chiến đấu với nhau để giành chiến thắng.
+              </p>
+            </div>
+
+            <!-- Coming Soon Card 2 -->
+            <div class="game-card" style="opacity: 0.5; cursor: not-allowed">
+              <div class="game-card-icon">🎰</div>
+              <h3 class="game-card-title">Lucky Wheel</h3>
+              <p class="game-card-desc">
+                Sắp ra mắt! Vòng quay may mắn cho viewers.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Generate Button -->
+        <div class="form-group">
+          <button type="button" id="generateBtn" class="btn btn-primary">
+            ✨ Tạo Link Game Overlay
+          </button>
+        </div>
+
+        <!-- Step 4: Output Section (ẩn cho đến khi generate) -->
+        <div class="output-section" id="outputSection">
+          <p class="output-label">🔗 Link Overlay cho OBS / TikTok Studio:</p>
+          <div class="output-wrapper">
+            <input type="text" id="outputUrl" class="output-input" readonly />
+            <button type="button" id="copyBtn" class="btn btn-copy">
+              📋 Copy
+            </button>
+          </div>
+          <div
+            style="
+              margin-top: 20px;
+              padding: 16px;
+              background: rgba(37, 244, 238, 0.1);
+              border-radius: 12px;
+              border-left: 4px solid var(--accent-cyan);
+            "
+          >
+            <strong style="color: var(--accent-cyan)">💡 Hướng dẫn:</strong>
+            <ol
+              style="
+                margin-top: 10px;
+                margin-left: 20px;
+                color: var(--text-secondary);
+              "
+            >
+              <li>Copy link ở trên</li>
+              <li>Mở OBS hoặc TikTok Studio</li>
+              <li>Thêm Browser Source mới</li>
+              <li>Paste link vào URL</li>
+              <li>Đặt kích thước: 1920x1080 (hoặc tùy ý)</li>
+              <li>Bắt đầu livestream và thông báo cho viewers chat "join"!</li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ==========================================
+         FOOTER
+         ========================================== -->
+    <footer class="footer">
+      <div class="container">
+        <p>
+          TikTok Live Games v2 &copy; 2026 | Made with 💖 for Vietnamese
+          Streamers
+        </p>
+      </div>
+    </footer>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">✅ Đã copy link!</div>
+
+    <!-- Scripts -->
+    <script src="/js/dashboard.js"></script>
+  </body>
+</html>

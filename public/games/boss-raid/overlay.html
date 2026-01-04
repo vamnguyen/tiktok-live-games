@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Boss Raid - TikTok Live Game</title>
+
+    <!-- 
+        OVERLAY PAGE CHO OBS / TIKTOK STUDIO
+        
+        QUAN TRỌNG:
+        - Background trong suốt để dùng làm overlay
+        - Canvas full screen
+        - Kết nối Socket.io để nhận events từ TikTok Live
+    -->
+
+    <style>
+      /* Reset & Full Screen */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        /* Background trong suốt cho OBS Browser Source */
+        background: transparent;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+
+      /* Canvas container */
+      #gameContainer {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Main game canvas */
+      #gameCanvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* Connection status indicator */
+      #statusIndicator {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        padding: 10px 20px;
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 20px;
+        color: #fff;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 100;
+      }
+
+      #statusDot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ffd700;
+        animation: pulse 1s infinite;
+      }
+
+      #statusDot.connected {
+        background: #00ff88;
+        animation: none;
+      }
+
+      #statusDot.error {
+        background: #ff4444;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+
+      /* Leaderboard panel */
+      #leaderboard {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 280px;
+        background: rgba(0, 0, 0, 0.75);
+        backdrop-filter: blur(10px);
+        border-radius: 16px;
+        padding: 20px;
+        border: 2px solid rgba(254, 44, 85, 0.5);
+        z-index: 100;
+      }
+
+      #leaderboard h3 {
+        color: #fe2c55;
+        font-size: 18px;
+        margin-bottom: 15px;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+      }
+
+      .leaderboard-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        margin-bottom: 10px;
+      }
+
+      .leaderboard-rank {
+        width: 30px;
+        height: 30px;
+        background: linear-gradient(135deg, #fe2c55, #8b5cf6);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+      }
+
+      .leaderboard-rank.gold {
+        background: linear-gradient(135deg, #ffd700, #ffaa00);
+      }
+      .leaderboard-rank.silver {
+        background: linear-gradient(135deg, #c0c0c0, #a0a0a0);
+      }
+      .leaderboard-rank.bronze {
+        background: linear-gradient(135deg, #cd7f32, #b87333);
+      }
+
+      .leaderboard-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .leaderboard-info {
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .leaderboard-name {
+        color: #fff;
+        font-weight: 600;
+        font-size: 14px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .leaderboard-damage {
+        color: #25f4ee;
+        font-size: 12px;
+      }
+
+      /* Join instruction */
+      #joinHint {
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 15px 30px;
+        background: linear-gradient(
+          135deg,
+          rgba(254, 44, 85, 0.9),
+          rgba(139, 92, 246, 0.9)
+        );
+        border-radius: 30px;
+        color: white;
+        font-size: 18px;
+        font-weight: 600;
+        text-align: center;
+        z-index: 100;
+        animation: bounce 2s infinite;
+      }
+
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateX(-50%) translateY(0);
+        }
+        50% {
+          transform: translateX(-50%) translateY(-10px);
+        }
+      }
+
+      /* Gift notification */
+      .gift-notification {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(0);
+        padding: 30px 50px;
+        background: linear-gradient(135deg, #fe2c55, #8b5cf6);
+        border-radius: 20px;
+        color: white;
+        font-size: 24px;
+        font-weight: bold;
+        text-align: center;
+        z-index: 200;
+        animation: popIn 2s forwards;
+      }
+
+      @keyframes popIn {
+        0% {
+          transform: translate(-50%, -50%) scale(0);
+          opacity: 0;
+        }
+        20% {
+          transform: translate(-50%, -50%) scale(1.2);
+          opacity: 1;
+        }
+        40% {
+          transform: translate(-50%, -50%) scale(1);
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(0);
+          opacity: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="gameContainer">
+      <!-- Main Game Canvas -->
+      <canvas id="gameCanvas"></canvas>
+
+      <!-- Connection Status -->
+      <div id="statusIndicator">
+        <div id="statusDot"></div>
+        <span id="statusText">Đang kết nối...</span>
+      </div>
+
+      <!-- Leaderboard -->
+      <div id="leaderboard">
+        <h3>🏆 Top Damage</h3>
+        <div id="leaderboardList">
+          <!-- Filled by JavaScript -->
+          <p
+            style="
+              color: rgba(255, 255, 255, 0.5);
+              text-align: center;
+              font-size: 14px;
+            "
+          >
+            Chưa có người chơi
+          </p>
+        </div>
+      </div>
+
+      <!-- Join Hint -->
+      <div id="joinHint">💬 Chat "join" để tham gia | "hit" để tấn công!</div>
+    </div>
+
+    <!-- Socket.io Client -->
+    <script src="/socket.io/socket.io.js"></script>
+
+    <!-- Game Logic -->
+    <script src="game.js"></script>
+  </body>
+</html>
