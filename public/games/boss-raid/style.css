@@ -1,0 +1,158 @@
+/* Reset & Full Screen */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* Transparent background for OBS Browser Source */
+  background: transparent;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Canvas container */
+#gameContainer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1; /* Behind UI */
+}
+
+/* Connection status indicator */
+#statusIndicator {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 20px;
+  color: #fff;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 100;
+}
+
+#statusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffd700;
+  animation: pulse 1s infinite;
+}
+
+#statusDot.connected {
+  background: #00ff88;
+  animation: none;
+}
+
+#statusDot.error {
+  background: #ff4444;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+/* Leaderboard panel */
+#leaderboard {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 250px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  border-radius: 12px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 100;
+  font-family: "Segoe UI", sans-serif;
+}
+
+#leaderboard h3 {
+  color: #fff;
+  font-size: 16px;
+  margin-bottom: 10px;
+  text-align: center;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  margin-bottom: 5px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.leaderboard-rank {
+  width: 24px;
+  height: 24px;
+  background: #555;
+  border-radius: 4px;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.leaderboard-info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.leaderboard-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.leaderboard-damage {
+  font-size: 11px;
+  color: #ffd700;
+}
+
+/* Join instruction */
+#joinHint {
+  position: absolute;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 15px 30px;
+  background: rgba(40, 20, 60, 0.9);
+  border: 1px solid rgba(255, 100, 255, 0.4);
+  box-shadow: 0 0 20px rgba(180, 0, 255, 0.3);
+  border-radius: 30px;
+  color: white;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  z-index: 100;
+  animation: pulse 2s infinite;
+  white-space: nowrap;
+  font-family: "Segoe UI", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}

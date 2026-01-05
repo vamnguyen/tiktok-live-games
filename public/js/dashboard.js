@@ -61,10 +61,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Remove @ if present
     const cleanUsername = username.replace("@", "");
 
-    // Validate: only allow letters, numbers, underscore
-    if (!/^[a-z0-9_]+$/.test(cleanUsername)) {
+    // Validate: only allow letters, numbers, underscore, and dots
+    if (!/^[a-z0-9_.]+$/.test(cleanUsername)) {
       showToast(
-        "⚠️ Username can only contain letters, numbers, and _",
+        "⚠️ Username can only contain letters, numbers, _, and .",
         "error"
       );
       return;

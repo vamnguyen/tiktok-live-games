@@ -1,789 +1,616 @@
 /**
- * game.js - Boss Raid Game Logic
- *
- * GAME MECHANICS:
- * - Boss in center with HP bar
- * - Viewers chat "join" to spawn avatar
- * - Viewers chat "hit" to attack boss
- * - Small gift: Heal boss (troll mode)
- * - Large gift: Ultimate attack (screen shake + massive damage)
- *
- * MULTI-TENANT:
- * - Parse ?id=username from URL
- * - Join Socket.io room by username
- * - Only receive events from the corresponding streamer
- *
- * @module games/boss-raid
+ * game.js - Boss Raid Game Logic (Phaser 3 Edition)
  */
 
-// ==========================================
-// CANVAS SETUP
-// ==========================================
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-
-/**
- * Resize canvas to full screen
- */
-function resizeCanvas() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resizeCanvas();
-window.addEventListener("resize", resizeCanvas);
-
-// ==========================================
-// UI ELEMENTS
-// ==========================================
-const statusDot = document.getElementById("statusDot");
-const statusText = document.getElementById("statusText");
-const leaderboardList = document.getElementById("leaderboardList");
-const joinHint = document.getElementById("joinHint");
-
-// ==========================================
-// GAME STATE
-// ==========================================
-const gameState = {
-  boss: {
-    x: 0,
-    y: 0,
-    radius: 80,
-    maxHp: 10000,
-    currentHp: 10000,
-    color: "#ff4444",
-    shaking: false,
-    shakeIntensity: 0,
-  },
-  players: new Map(), // Map<uniqueId, playerObject>
-  attacks: [], // Array of attack animations
-  particles: [], // Array of particle effects
-  damageTexts: [], // Floating damage numbers
-  screenShake: { x: 0, y: 0 },
-  lastUpdate: Date.now(),
-};
-
-// ==========================================
-// GET USERNAME FROM URL
-//
-// IMPORTANT: This username is used as Room ID
-// to ensure we only receive events from the correct streamer
-// ==========================================
-function getUsernameFromURL() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const username = urlParams.get("id");
-
-  if (!username) {
-    console.error("[Game] Username not found in URL!");
-    statusText.textContent = "Error: Missing username in URL";
-    statusDot.classList.add("error");
-    return null;
+class MainScene extends Phaser.Scene {
+  constructor() {
+    super({ key: "MainScene" });
+    this.players = new Map(); // uniqueId -> Container
+    this.boss = null;
+    this.socket = null;
+    this.streamerUsername = null;
+    this.isGameOver = false;
   }
 
-  return username.toLowerCase().trim();
-}
-
-const streamerUsername = getUsernameFromURL();
-console.log(`[Game] Streamer username: ${streamerUsername}`);
-
-// ==========================================
-// SOCKET.IO CONNECTION
-//
-// DATA ISOLATION:
-// - Connect to server
-// - emit('join-room', username) to join private room
-// - Only receive events from this streamer's room
-// ==========================================
-const socket = io();
-
-if (streamerUsername) {
-  socket.emit("join-room", streamerUsername);
-  console.log(`[Socket] Joining room: ${streamerUsername}`);
-}
-
-// ==========================================
-// SOCKET EVENT HANDLERS
-// ==========================================
-
-/**
- * Successfully joined room
- */
-socket.on("room-joined", (data) => {
-  console.log("[Socket] Joined room:", data);
-  statusText.textContent = `Connected: @${streamerUsername}`;
-  statusDot.classList.add("connected");
-});
-
-/**
- * Connected to TikTok Live
- */
-socket.on("tiktok_connected", (data) => {
-  console.log("[Socket] TikTok connected:", data);
-  statusText.textContent = `LIVE: @${streamerUsername}`;
-});
-
-/**
- * Connection error
- */
-socket.on("connection-error", (data) => {
-  console.error("[Socket] Connection error:", data);
-  statusText.textContent = data.message;
-  statusDot.classList.add("error");
-});
-
-/**
- * PLAYER JOIN
- *
- * When viewer chats "join" -> Server sends this event
- * Spawn new avatar around the boss
- */
-socket.on("player_join", (data) => {
-  console.log("[Game] Player join:", data.user.nickname);
-
-  const { user } = data;
-
-  // Check if player already exists
-  if (gameState.players.has(user.uniqueId)) {
-    console.log("[Game] Player already exists:", user.nickname);
-    return;
+  preload() {
+    // No external assets
   }
 
-  // Create random position around boss
-  const angle = Math.random() * Math.PI * 2;
-  const distance = gameState.boss.radius + 80 + Math.random() * 150;
+  create() {
+    console.log("[Phaser] Game Created");
 
-  const player = {
-    uniqueId: user.uniqueId,
-    nickname: user.nickname,
-    avatar: user.profilePictureUrl,
-    x: canvas.width / 2 + Math.cos(angle) * distance,
-    y: canvas.height / 2 + Math.sin(angle) * distance,
-    targetX: 0,
-    targetY: 0,
-    radius: 25,
-    color: getRandomColor(),
-    damage: 0, // Total damage dealt
-    attacking: false,
-    hp: 100,
-    maxHp: 100,
-  };
+    // 0. Visual Setup
+    this.generateTextures();
+    this.cameras.main.setBackgroundColor("#1a1a2e"); // Dark Space Blue
 
-  gameState.players.set(user.uniqueId, player);
+    // stars background
+    this.createStarfield();
 
-  // Hide join hint after first player joins
-  joinHint.style.display = "none";
+    // 1. Setup Socket.io
+    this.setupSocket();
 
-  // Particle effect on join
-  spawnParticles(player.x, player.y, "#00ff88", 10);
+    // 2. Create Boss
+    this.createBoss();
 
-  updateLeaderboard();
-});
+    // 3. Input handling (Debug)
+    this.input.keyboard.on("keydown-D", () => {
+      if (this.boss) this.damageBoss(500);
+    });
 
-/**
- * PLAYER ATTACK
- *
- * When viewer chats "hit" -> Server sends this event
- * Attack animation from player to boss
- */
-socket.on("player_attack", (data) => {
-  console.log(
-    "[Game] Player attack:",
-    data.user.nickname,
-    "Damage:",
-    data.damage
-  );
+    // Debug: Join fake player
+    this.input.keyboard.on("keydown-J", () => {
+      this.handlePlayerJoin({
+        user: {
+          uniqueId: "test_user_" + Date.now(),
+          nickname: "Tester",
+          profilePictureUrl: "",
+        },
+      });
+    });
 
-  const { user, damage } = data;
+    // Debug: Gifts
+    this.input.keyboard.on("keydown-S", () => {
+      this.handleGift({
+        user: { uniqueId: "debug_user", nickname: "DebugUser" },
+        giftName: "Rose",
+        giftType: "small",
+        repeatCount: 1,
+      });
+    });
+    this.input.keyboard.on("keydown-M", () => {
+      this.handleGift({
+        user: { uniqueId: "debug_user", nickname: "DebugUser" },
+        giftName: "Donut",
+        giftType: "medium",
+        repeatCount: 10,
+      });
+    });
+    this.input.keyboard.on("keydown-L", () => {
+      this.handleGift({
+        user: { uniqueId: "debug_user", nickname: "DebugUser" },
+        giftName: "Lion",
+        giftType: "large",
+        repeatCount: 1,
+      });
+    });
+  }
 
-  // Find player
-  let player = gameState.players.get(user.uniqueId);
+  generateTextures() {
+    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+    graphics.fillStyle(0xffffff, 1);
+    graphics.fillCircle(4, 4, 4);
+    graphics.generateTexture("particle", 8, 8);
+  }
 
-  // If not joined, auto-join
-  if (!player) {
+  createStarfield() {
+    const { width, height } = this.scale;
+    for (let i = 0; i < 100; i++) {
+      const x = Math.random() * width;
+      const y = Math.random() * height;
+      const alpha = Math.random();
+      this.add.circle(x, y, 1, 0xffffff, alpha);
+    }
+  }
+
+  // ==========================================
+  // INITIALIZATION
+  // ==========================================
+
+  setupSocket() {
+    this.socket = io();
+    this.streamerUsername = this.getUsernameFromURL();
+
+    if (this.streamerUsername) {
+      this.socket.emit("join-room", this.streamerUsername);
+      const statusText = document.getElementById("statusText");
+      if (statusText)
+        statusText.textContent = `Connecting: @${this.streamerUsername}`;
+    }
+
+    // Socket Events
+    this.socket.on("room-joined", (data) => {
+      const statusText = document.getElementById("statusText");
+      const statusDot = document.getElementById("statusDot");
+      if (statusText)
+        statusText.textContent = `Connected: @${this.streamerUsername}`;
+      if (statusDot) statusDot.classList.add("connected");
+    });
+
+    this.socket.on("chat", (data) => this.handleChat(data));
+    this.socket.on("player_join", (data) => this.handlePlayerJoin(data));
+    this.socket.on("player_attack", (data) => this.handlePlayerAttack(data));
+    this.socket.on("gift_received", (data) => this.handleGift(data));
+  }
+
+  getUsernameFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get("id") || null;
+  }
+
+  // ==========================================
+  // GAME OBJECTS
+  // ==========================================
+
+  createBoss() {
+    const { width, height } = this.scale;
+
+    this.boss = this.add.container(width / 2, height / 2);
+    this.boss.maxHp = 50000; // Increased HP for raid feel
+    this.boss.currentHp = 50000;
+    this.boss.radius = 100;
+
+    // Boss Sprite (Emoji)
+    const bossText = this.add
+      .text(0, 0, "👹", { fontSize: "150px" })
+      .setOrigin(0.5);
+
+    // HP Bar
+    const hpBg = this.add.rectangle(0, -100, 300, 30, 0x000000, 0.8);
+    const hpFill = this.add.rectangle(-150, -100, 300, 30, 0xff0000);
+    hpFill.setOrigin(0, 0.5);
+
+    // Boss Name
+    const nameText = this.add
+      .text(0, -140, "RAID BOSS", {
+        fontSize: "32px",
+        fontFamily: "Segoe UI",
+        fontStyle: "bold",
+        color: "#ff4444",
+        stroke: "#000000",
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5);
+
+    // HP Text
+    const hpText = this.add
+      .text(0, -100, "50000", {
+        fontSize: "18px",
+        fontFamily: "monospace",
+        fontStyle: "bold",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    this.boss.add([bossText, hpBg, hpFill, nameText, hpText]);
+
+    this.boss.hpFill = hpFill;
+    this.boss.hpText = hpText;
+    this.boss.sprite = bossText;
+
+    this.physics.add.existing(this.boss);
+    this.boss.body.setCircle(80);
+    this.boss.body.setImmovable(true);
+  }
+
+  // ==========================================
+  // PLAYER MANAGMENT
+  // ==========================================
+
+  handlePlayerJoin(data) {
+    if (this.isGameOver) return;
+    const { user } = data;
+    if (this.players.has(user.uniqueId)) return;
+
+    // Random pos
     const angle = Math.random() * Math.PI * 2;
-    const distance = gameState.boss.radius + 80 + Math.random() * 150;
+    const distance = 350;
+    const x = this.boss.x + Math.cos(angle) * distance;
+    const y = this.boss.y + Math.sin(angle) * distance;
 
-    player = {
-      uniqueId: user.uniqueId,
-      nickname: user.nickname,
-      avatar: user.profilePictureUrl,
-      x: canvas.width / 2 + Math.cos(angle) * distance,
-      y: canvas.height / 2 + Math.sin(angle) * distance,
-      radius: 25,
-      color: getRandomColor(),
-      damage: 0,
-      attacking: false,
-      hp: 100,
-      maxHp: 100,
-    };
+    const player = this.add.container(x, y);
+    player.uniqueId = user.uniqueId;
+    player.nickname = user.nickname;
+    player.damageDealt = 0;
 
-    gameState.players.set(user.uniqueId, player);
+    // Avatar
+    const bgCircle = this.add.circle(0, 0, 32, 0xffffff);
+    player.add(bgCircle);
+
+    const key = `avatar_${user.uniqueId}`;
+    if (user.profilePictureUrl) {
+      this.load.image(key, user.profilePictureUrl);
+      this.load.once("filecomplete-image-" + key, () => {
+        const avatarSprite = this.add.image(0, 0, key);
+        avatarSprite.setDisplaySize(60, 60);
+        // Simple mask
+        const shape = this.make.graphics();
+        shape.fillCircle(x, y, 30);
+        // Masking in containers is complex, skipping mask for performance/simplicity
+        // Just add image
+        player.add(avatarSprite);
+        bgCircle.destroy();
+        player.sendToBack(avatarSprite);
+      });
+      this.load.start();
+    } else {
+      const emoji = this.add
+        .text(0, 0, "👤", { fontSize: "40px" })
+        .setOrigin(0.5);
+      player.add(emoji);
+    }
+
+    // Name
+    const nameText = this.add
+      .text(0, 45, user.nickname.substring(0, 10), {
+        fontSize: "14px",
+        fontFamily: "Segoe UI",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5);
+
+    player.add([nameText]);
+    player.spriteObject = bgCircle; // Ref for scaling
+
+    this.physics.add.existing(player);
+    this.players.set(user.uniqueId, player);
+
+    this.createExplosionEffect(x, y, 0x00ff88, 10, false);
+
+    const hint = document.getElementById("joinHint");
+    if (hint) hint.style.display = "none";
+    this.updateLeaderboard();
   }
 
-  // Create attack animation
-  createAttack(player, damage);
+  handleChat(data) {
+    if (this.isGameOver) return;
+    const { user, comment } = data;
+    const msg = comment.toLowerCase().trim();
 
-  // Update damage
-  player.damage += damage;
+    // Auto join
+    if (!this.players.has(user.uniqueId)) {
+      // join on any interaction
+      this.handlePlayerJoin({ user });
+    }
 
-  // Deal damage to boss
-  gameState.boss.currentHp = Math.max(0, gameState.boss.currentHp - damage);
-
-  // Floating damage text
-  spawnDamageText(gameState.boss.x, gameState.boss.y, damage, "#ff4444");
-
-  // Particles
-  spawnParticles(gameState.boss.x, gameState.boss.y, "#ff4444", 5);
-
-  updateLeaderboard();
-
-  // Check boss defeated
-  if (gameState.boss.currentHp <= 0) {
-    bossDefeated();
+    if (["hit", "attack", "chem", "danh"].some((k) => msg.includes(k))) {
+      this.handlePlayerAttack({ user, damage: 100 });
+    }
   }
-});
 
-/**
- * GIFT RECEIVED
- *
- * Categorize gifts to trigger different effects:
- * - small: Heal boss (troll mode)
- * - medium: Normal attack
- * - large: ULTIMATE! Screen shake + massive damage
- */
-socket.on("gift_received", (data) => {
-  console.log("[Game] Gift received:", data);
+  // ==========================================
+  // ACTIONS
+  // ==========================================
 
-  const { user, giftName, giftValue, giftType, repeatCount } = data;
+  handlePlayerAttack(data) {
+    if (this.isGameOver) return;
+    const { user, damage } = data;
+    let player = this.players.get(user.uniqueId);
 
-  // Show notification
-  showGiftNotification(user.nickname, giftName, repeatCount);
+    if (!player) {
+      this.handlePlayerJoin({ user });
+      return; // Wait for join
+    }
 
-  switch (giftType) {
-    case "small":
-      // TROLL: Heal boss slightly
-      const healAmount = giftValue * repeatCount * 5;
-      gameState.boss.currentHp = Math.min(
-        gameState.boss.maxHp,
-        gameState.boss.currentHp + healAmount
+    // Attack Animation
+    const attackText = this.add
+      .text(player.x, player.y - 30, "⚔️", { fontSize: "24px" })
+      .setOrigin(0.5);
+    this.tweens.add({
+      targets: attackText,
+      y: player.y - 60,
+      alpha: 0,
+      duration: 400,
+      onComplete: () => attackText.destroy(),
+    });
+
+    // Projectile
+    const projectile = this.add
+      .text(player.x, player.y, "🔥", { fontSize: "24px" })
+      .setOrigin(0.5);
+    this.physics.add.existing(projectile);
+    this.physics.moveToObject(projectile, this.boss, 600);
+
+    // Rotation
+    const angle = Phaser.Math.Angle.Between(
+      player.x,
+      player.y,
+      this.boss.x,
+      this.boss.y
+    );
+    projectile.rotation = angle + 1.57;
+
+    // Hit Logic
+    this.physics.add.overlap(projectile, this.boss, (proj, boss) => {
+      proj.destroy();
+      this.damageBoss(damage);
+      this.createExplosionEffect(proj.x, proj.y, 0xffaa00, 8, false);
+
+      player.damageDealt += damage;
+      this.updateLeaderboard();
+    });
+
+    this.time.delayedCall(1500, () => {
+      if (projectile.active) projectile.destroy();
+    });
+  }
+
+  handleGift(data) {
+    if (this.isGameOver) return;
+    const { user, giftName, giftType, repeatCount } = data;
+
+    if (!this.players.has(user.uniqueId)) {
+      this.handlePlayerJoin({ user });
+    }
+    const player = this.players.get(user.uniqueId);
+
+    // 1. Buff Player
+    if (player) {
+      // Heal / Scale Up
+      this.tweens.add({
+        targets: player,
+        scale: 1.3,
+        duration: 200,
+        yoyo: true,
+      });
+
+      const buffText = this.add
+        .text(player.x, player.y - 50, "💪 BUFF!", {
+          fontSize: "18px",
+          color: "#00ff00",
+          stroke: "#000",
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5);
+      this.tweens.add({
+        targets: buffText,
+        y: player.y - 100,
+        alpha: 0,
+        duration: 1000,
+      });
+
+      // Bonus Damage
+      const damage =
+        (giftType === "large" ? 5000 : giftType === "medium" ? 1000 : 200) *
+        repeatCount;
+      player.damageDealt += damage;
+      this.updateLeaderboard();
+
+      // Damage Boss immediately (Magic Damage)
+      this.damageBoss(damage);
+      this.showFloatingText(
+        this.boss.x,
+        this.boss.y - 50,
+        `-${damage}`,
+        0xff00ff
       );
-      spawnDamageText(
-        gameState.boss.x,
-        gameState.boss.y,
-        `+${healAmount}`,
-        "#00ff88"
+    }
+
+    // 2. Global Effects
+    if (giftType === "large" || repeatCount >= 10) {
+      // ULTIMATE
+      this.triggerGlobalAttack(user, giftName);
+    } else {
+      // Standard Effect
+      this.showFloatingText(
+        player ? player.x : 0,
+        player ? player.y - 80 : 0,
+        `🎁 ${giftName}`,
+        0xffd700
       );
-      spawnParticles(gameState.boss.x, gameState.boss.y, "#00ff88", 10);
-      break;
-
-    case "medium":
-      // Medium attack
-      const mediumDamage = giftValue * repeatCount * 10;
-      gameState.boss.currentHp = Math.max(
-        0,
-        gameState.boss.currentHp - mediumDamage
-      );
-      spawnDamageText(
-        gameState.boss.x,
-        gameState.boss.y,
-        mediumDamage,
-        "#ffd700"
-      );
-      spawnParticles(gameState.boss.x, gameState.boss.y, "#ffd700", 15);
-
-      // Update player damage if exists
-      const medPlayer = gameState.players.get(user.uniqueId);
-      if (medPlayer) {
-        medPlayer.damage += mediumDamage;
-        updateLeaderboard();
-      }
-      break;
-
-    case "large":
-      // ULTIMATE ATTACK!
-      triggerUltimate(user, giftValue * repeatCount);
-      break;
+    }
   }
 
-  // Check boss defeated
-  if (gameState.boss.currentHp <= 0) {
-    bossDefeated();
-  }
-});
+  triggerGlobalAttack(user, giftName) {
+    // Screen Shake
+    this.cameras.main.shake(1000, 0.05);
+    this.cameras.main.flash(500, 255, 255, 255);
 
-// ==========================================
-// GAME FUNCTIONS
-// ==========================================
+    const text = this.add
+      .text(
+        this.scale.width / 2,
+        this.scale.height / 2,
+        `${user.nickname}\nUSED ${giftName.toUpperCase()}!`,
+        {
+          fontSize: "48px",
+          fontFamily: "Arial Black",
+          align: "center",
+          color: "#ffd700",
+          stroke: "#000",
+          strokeThickness: 8,
+        }
+      )
+      .setOrigin(0.5)
+      .setAlpha(0);
 
-/**
- * Create attack animation
- * @param {Object} player - Player object
- * @param {number} damage - Damage amount
- */
-function createAttack(player, damage) {
-  const attack = {
-    startX: player.x,
-    startY: player.y,
-    currentX: player.x,
-    currentY: player.y,
-    targetX: gameState.boss.x,
-    targetY: gameState.boss.y,
-    progress: 0,
-    speed: 0.05,
-    damage: damage,
-    color: player.color,
-  };
-
-  gameState.attacks.push(attack);
-}
-
-/**
- * ULTIMATE ATTACK
- * Screen shake + massive damage + epic particles
- * @param {Object} user - User who triggered ultimate
- * @param {number} value - Gift value
- */
-function triggerUltimate(user, value) {
-  const ultimateDamage = value * 50;
-
-  // Screen shake
-  gameState.boss.shaking = true;
-  gameState.boss.shakeIntensity = 20;
-
-  setTimeout(() => {
-    gameState.boss.shaking = false;
-    gameState.boss.shakeIntensity = 0;
-  }, 1000);
-
-  // Massive damage
-  gameState.boss.currentHp = Math.max(
-    0,
-    gameState.boss.currentHp - ultimateDamage
-  );
-
-  // Epic damage text
-  spawnDamageText(
-    gameState.boss.x,
-    gameState.boss.y,
-    `💥 ${ultimateDamage}`,
-    "#ff00ff"
-  );
-
-  // Lots of particles
-  for (let i = 0; i < 5; i++) {
-    setTimeout(() => {
-      spawnParticles(gameState.boss.x, gameState.boss.y, "#ff00ff", 20);
-    }, i * 100);
-  }
-
-  // Update player damage
-  const ultPlayer = gameState.players.get(user.uniqueId);
-  if (ultPlayer) {
-    ultPlayer.damage += ultimateDamage;
-    updateLeaderboard();
-  }
-
-  console.log(
-    `[Game] ULTIMATE! ${user.nickname} dealt ${ultimateDamage} damage!`
-  );
-}
-
-/**
- * Boss defeated - respawn with higher HP
- */
-function bossDefeated() {
-  console.log("[Game] BOSS DEFEATED!");
-
-  // Epic explosion
-  for (let i = 0; i < 10; i++) {
-    setTimeout(() => {
-      spawnParticles(
-        gameState.boss.x + (Math.random() - 0.5) * 100,
-        gameState.boss.y + (Math.random() - 0.5) * 100,
-        getRandomColor(),
-        30
-      );
-    }, i * 100);
-  }
-
-  // Respawn boss after 3 seconds with higher HP
-  setTimeout(() => {
-    gameState.boss.maxHp = Math.floor(gameState.boss.maxHp * 1.5);
-    gameState.boss.currentHp = gameState.boss.maxHp;
-    console.log(`[Game] Boss respawned with ${gameState.boss.maxHp} HP`);
-  }, 3000);
-}
-
-/**
- * Spawn particles at position
- * @param {number} x - X position
- * @param {number} y - Y position
- * @param {string} color - Particle color
- * @param {number} count - Number of particles
- */
-function spawnParticles(x, y, color, count) {
-  for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 2 + Math.random() * 5;
-
-    gameState.particles.push({
-      x: x,
-      y: y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      radius: 3 + Math.random() * 5,
-      color: color,
+    this.tweens.add({
+      targets: text,
       alpha: 1,
-      decay: 0.02 + Math.random() * 0.02,
+      scale: 1.5,
+      duration: 500,
+      yoyo: true,
+      hold: 1000,
+      onComplete: () => text.destroy(),
+    });
+
+    // Massive Explosion
+    this.createExplosionEffect(this.boss.x, this.boss.y, 0xff00ff, 100, true);
+  }
+
+  // ==========================================
+  // LOGIC & SYSTEMS
+  // ==========================================
+
+  damageBoss(amount) {
+    if (this.isGameOver) return;
+
+    this.boss.currentHp = Math.max(0, this.boss.currentHp - amount);
+    this.updateBossHpBar();
+
+    // Visuals
+    this.boss.sprite.setTint(0xff0000);
+    this.time.delayedCall(100, () => this.boss.sprite.clearTint());
+
+    // Shake
+    this.tweens.add({
+      targets: this.boss,
+      x: this.boss.x + (Math.random() - 0.5) * 15,
+      y: this.boss.y + (Math.random() - 0.5) * 15,
+      duration: 50,
+      yoyo: true,
+      repeat: 1,
+    });
+
+    if (this.boss.currentHp <= 0) this.bossDeath();
+  }
+
+  updateBossHpBar() {
+    const percent = this.boss.currentHp / this.boss.maxHp;
+    this.boss.hpFill.width = 300 * percent;
+    this.boss.hpText.setText(`${Math.floor(this.boss.currentHp)}`);
+  }
+
+  bossDeath() {
+    this.isGameOver = true;
+    this.boss.sprite.setText("💀");
+    this.createExplosionEffect(this.boss.x, this.boss.y, 0xff0000, 200, true);
+    this.cameras.main.shake(1000, 0.05);
+
+    // Victory Screen
+    const { width, height } = this.scale;
+    const bg = this.add
+      .rectangle(width / 2, height / 2, width, height, 0x000000, 0.8)
+      .setDepth(100);
+    const winText = this.add
+      .text(width / 2, height / 2 - 50, "VICTORY!", {
+        fontSize: "80px",
+        fontFamily: "Arial Black",
+        color: "#ffd700",
+        stroke: "#ff4400",
+        strokeThickness: 10,
+      })
+      .setOrigin(0.5)
+      .setDepth(101);
+
+    const subText = this.add
+      .text(width / 2, height / 2 + 50, "BOSS DEFEATED", {
+        fontSize: "32px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5)
+      .setDepth(101);
+
+    // Spawn confettis
+    this.time.addEvent({
+      delay: 100,
+      callback: () => {
+        this.createExplosionEffect(
+          Math.random() * width,
+          Math.random() * height,
+          Phaser.Display.Color.RandomRGB().color,
+          10,
+          false
+        );
+      },
+      repeat: 50,
+    });
+  }
+
+  updateLeaderboard() {
+    const leaderboardList = document.getElementById("leaderboardList");
+    if (!leaderboardList) return;
+
+    const sorted = Array.from(this.players.values())
+      .sort((a, b) => b.damageDealt - a.damageDealt)
+      .slice(0, 5);
+
+    if (sorted.length === 0) {
+      leaderboardList.innerHTML =
+        '<p style="color:rgba(255,255,255,0.5);text-align:center">Waiting...</p>';
+      return;
+    }
+
+    leaderboardList.innerHTML = sorted
+      .map(
+        (p, index) => `
+          <div class="leaderboard-item">
+            <div class="leaderboard-rank" style="background: ${
+              index < 3 ? "" : "#444"
+            }; ${
+          index === 0
+            ? "background:linear-gradient(135deg,#ffd700,#ffaa00)"
+            : ""
+        }">${index + 1}</div>
+            <div class="leaderboard-info">
+                <div class="leaderboard-name" style="color:white">${
+                  p.nickname
+                }</div>
+                <div class="leaderboard-damage">⚔️ ${this.formatNumber(
+                  p.damageDealt
+                )}</div>
+            </div>
+          </div>
+      `
+      )
+      .join("");
+  }
+
+  formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
+    if (num >= 1000) return (num / 1000).toFixed(1) + "K";
+    return num;
+  }
+
+  // ==========================================
+  // VFX
+  // ==========================================
+
+  createExplosionEffect(x, y, color, count, large) {
+    const particles = this.add.particles(x, y, "particle", {
+      speed: { min: 50, max: large ? 400 : 200 },
+      scale: { start: large ? 1 : 0.4, end: 0 },
+      blendMode: "ADD",
+      lifespan: large ? 1000 : 600,
+      tint: color,
+      quantity: count,
+      emitting: false,
+    });
+    particles.explode(count);
+  }
+
+  showFloatingText(x, y, message, color) {
+    const text = this.add
+      .text(x, y, message, {
+        fontSize: "24px",
+        fontFamily: "Arial Black",
+        color: "#ffffff",
+        stroke: "#000000",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5);
+    text.setTint(color);
+
+    this.tweens.add({
+      targets: text,
+      y: y - 80,
+      alpha: 0,
+      duration: 1200,
+      ease: "Power2",
+      onComplete: () => text.destroy(),
     });
   }
 }
 
-/**
- * Spawn floating damage text
- * @param {number} x - X position
- * @param {number} y - Y position
- * @param {string|number} text - Damage text
- * @param {string} color - Text color
- */
-function spawnDamageText(x, y, text, color) {
-  gameState.damageTexts.push({
-    x: x + (Math.random() - 0.5) * 50,
-    y: y,
-    text: String(text),
-    color: color,
-    alpha: 1,
-    vy: -2,
-  });
-}
+const config = {
+  type: Phaser.AUTO,
+  parent: "gameContainer",
+  width: window.innerWidth,
+  height: window.innerHeight,
+  transparent: false, // Opaque background for dark theme
+  backgroundColor: "#1a1a2e",
+  scale: {
+    mode: Phaser.Scale.RESIZE,
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  physics: {
+    default: "arcade",
+    arcade: {
+      gravity: { y: 0 },
+      debug: false,
+    },
+  },
+  scene: MainScene,
+};
 
-/**
- * Show gift notification
- * @param {string} nickname - User nickname
- * @param {string} giftName - Gift name
- * @param {number} count - Gift count
- */
-function showGiftNotification(nickname, giftName, count) {
-  const notification = document.createElement("div");
-  notification.className = "gift-notification";
-  notification.innerHTML = `🎁 ${nickname}<br>${giftName} x${count}`;
-  document.body.appendChild(notification);
-
-  setTimeout(() => {
-    notification.remove();
-  }, 2000);
-}
-
-/**
- * Update leaderboard UI
- */
-function updateLeaderboard() {
-  // Sort by damage (descending)
-  const sorted = Array.from(gameState.players.values())
-    .sort((a, b) => b.damage - a.damage)
-    .slice(0, 3); // Top 3
-
-  if (sorted.length === 0) {
-    leaderboardList.innerHTML =
-      '<p style="color: rgba(255,255,255,0.5); text-align: center; font-size: 14px;">No players yet</p>';
-    return;
-  }
-
-  const rankClasses = ["gold", "silver", "bronze"];
-
-  leaderboardList.innerHTML = sorted
-    .map(
-      (player, index) => `
-        <div class="leaderboard-item">
-            <div class="leaderboard-rank ${rankClasses[index]}">${
-        index + 1
-      }</div>
-            <img src="${player.avatar || "https://via.placeholder.com/40"}"
-                 alt="${player.nickname}"
-                 class="leaderboard-avatar"
-                 onerror="this.src='https://via.placeholder.com/40'">
-            <div class="leaderboard-info">
-                <div class="leaderboard-name">${player.nickname}</div>
-                <div class="leaderboard-damage">💥 ${formatNumber(
-                  player.damage
-                )} damage</div>
-            </div>
-        </div>
-    `
-    )
-    .join("");
-}
-
-/**
- * Format large numbers
- * @param {number} num - Number to format
- * @returns {string} Formatted string
- */
-function formatNumber(num) {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + "M";
-  if (num >= 1000) return (num / 1000).toFixed(1) + "K";
-  return num.toString();
-}
-
-/**
- * Get random color from palette
- * @returns {string} Random hex color
- */
-function getRandomColor() {
-  const colors = [
-    "#fe2c55",
-    "#25f4ee",
-    "#8b5cf6",
-    "#3b82f6",
-    "#ffd700",
-    "#00ff88",
-  ];
-  return colors[Math.floor(Math.random() * colors.length)];
-}
-
-// ==========================================
-// RENDER FUNCTIONS
-// ==========================================
-
-/**
- * Draw boss
- */
-function drawBoss() {
-  const boss = gameState.boss;
-
-  // Update boss position (center of screen)
-  boss.x = canvas.width / 2;
-  boss.y = canvas.height / 2;
-
-  // Screen shake offset
-  let offsetX = 0,
-    offsetY = 0;
-  if (boss.shaking) {
-    offsetX = (Math.random() - 0.5) * boss.shakeIntensity;
-    offsetY = (Math.random() - 0.5) * boss.shakeIntensity;
-  }
-
-  const x = boss.x + offsetX;
-  const y = boss.y + offsetY;
-
-  // Glow effect
-  ctx.shadowColor = boss.color;
-  ctx.shadowBlur = 30;
-
-  // Boss body
-  const gradient = ctx.createRadialGradient(x, y, 0, x, y, boss.radius);
-  gradient.addColorStop(0, "#ff6666");
-  gradient.addColorStop(0.7, boss.color);
-  gradient.addColorStop(1, "#661111");
-
-  ctx.beginPath();
-  ctx.arc(x, y, boss.radius, 0, Math.PI * 2);
-  ctx.fillStyle = gradient;
-  ctx.fill();
-
-  // Boss face
-  ctx.shadowBlur = 0;
-
-  // Eyes
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-  ctx.arc(x - 25, y - 15, 15, 0, Math.PI * 2);
-  ctx.arc(x + 25, y - 15, 15, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Pupils
-  ctx.fillStyle = "#000";
-  ctx.beginPath();
-  ctx.arc(x - 25, y - 15, 8, 0, Math.PI * 2);
-  ctx.arc(x + 25, y - 15, 8, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Mouth
-  ctx.strokeStyle = "#000";
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(x, y + 20, 25, 0.2 * Math.PI, 0.8 * Math.PI);
-  ctx.stroke();
-
-  // HP Bar
-  const hpBarWidth = 200;
-  const hpBarHeight = 20;
-  const hpBarX = x - hpBarWidth / 2;
-  const hpBarY = y - boss.radius - 40;
-  const hpPercent = boss.currentHp / boss.maxHp;
-
-  // HP Bar background
-  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-  ctx.beginPath();
-  ctx.roundRect(hpBarX - 5, hpBarY - 5, hpBarWidth + 10, hpBarHeight + 10, 10);
-  ctx.fill();
-
-  // HP Bar fill
-  const hpGradient = ctx.createLinearGradient(
-    hpBarX,
-    hpBarY,
-    hpBarX + hpBarWidth,
-    hpBarY
-  );
-  hpGradient.addColorStop(0, "#ff0000");
-  hpGradient.addColorStop(0.5, "#ff4444");
-  hpGradient.addColorStop(1, "#ff0000");
-
-  ctx.fillStyle = hpGradient;
-  ctx.beginPath();
-  ctx.roundRect(hpBarX, hpBarY, hpBarWidth * hpPercent, hpBarHeight, 5);
-  ctx.fill();
-
-  // HP Text
-  ctx.fillStyle = "#fff";
-  ctx.font = "bold 14px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText(
-    `${formatNumber(boss.currentHp)} / ${formatNumber(boss.maxHp)}`,
-    x,
-    hpBarY + 15
-  );
-
-  // Boss name
-  ctx.font = "bold 24px Arial";
-  ctx.fillStyle = "#fff";
-  ctx.fillText("👹 BOSS", x, hpBarY - 15);
-}
-
-/**
- * Draw all players
- */
-function drawPlayers() {
-  gameState.players.forEach((player) => {
-    const { x, y, radius, color, nickname } = player;
-
-    // Player circle
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Player nickname
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 12px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(nickname.substring(0, 10), x, y + radius + 18);
-  });
-}
-
-/**
- * Update and draw attacks
- */
-function updateAttacks() {
-  gameState.attacks = gameState.attacks.filter((attack) => {
-    // Update position
-    attack.progress += attack.speed;
-
-    if (attack.progress >= 1) {
-      // Attack reached boss
-      spawnParticles(attack.targetX, attack.targetY, attack.color, 5);
-      return false;
-    }
-
-    // Lerp position
-    attack.currentX =
-      attack.startX + (attack.targetX - attack.startX) * attack.progress;
-    attack.currentY =
-      attack.startY + (attack.targetY - attack.startY) * attack.progress;
-
-    // Draw attack projectile
-    ctx.beginPath();
-    ctx.arc(attack.currentX, attack.currentY, 8, 0, Math.PI * 2);
-    ctx.fillStyle = attack.color;
-    ctx.fill();
-
-    // Trail effect
-    ctx.beginPath();
-    ctx.moveTo(attack.startX, attack.startY);
-    ctx.lineTo(attack.currentX, attack.currentY);
-    ctx.strokeStyle = attack.color;
-    ctx.lineWidth = 3;
-    ctx.globalAlpha = 0.3;
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-
-    return true;
-  });
-}
-
-/**
- * Update and draw particles
- */
-function updateParticles() {
-  gameState.particles = gameState.particles.filter((p) => {
-    // Update
-    p.x += p.vx;
-    p.y += p.vy;
-    p.alpha -= p.decay;
-    p.radius *= 0.98;
-
-    if (p.alpha <= 0) return false;
-
-    // Draw
-    ctx.globalAlpha = p.alpha;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-    ctx.fillStyle = p.color;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    return true;
-  });
-}
-
-/**
- * Update and draw damage texts
- */
-function updateDamageTexts() {
-  gameState.damageTexts = gameState.damageTexts.filter((dt) => {
-    // Update
-    dt.y += dt.vy;
-    dt.alpha -= 0.015;
-
-    if (dt.alpha <= 0) return false;
-
-    // Draw
-    ctx.globalAlpha = dt.alpha;
-    ctx.font = "bold 28px Arial";
-    ctx.textAlign = "center";
-    ctx.fillStyle = dt.color;
-    ctx.strokeStyle = "#000";
-    ctx.lineWidth = 3;
-    ctx.strokeText(dt.text, dt.x, dt.y);
-    ctx.fillText(dt.text, dt.x, dt.y);
-    ctx.globalAlpha = 1;
-
-    return true;
-  });
-}
-
-// ==========================================
-// GAME LOOP
-// ==========================================
-function gameLoop() {
-  // Clear canvas (transparent background)
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  // Draw game elements
-  drawBoss();
-  drawPlayers();
-  updateAttacks();
-  updateParticles();
-  updateDamageTexts();
-
-  // Continue loop
-  requestAnimationFrame(gameLoop);
-}
-
-// ==========================================
-// START GAME
-// ==========================================
-console.log("[Game] Boss Raid game initialized");
-gameLoop();
+const game = new Phaser.Game(config);
