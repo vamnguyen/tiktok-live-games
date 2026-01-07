@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TikTok Bridge Debugger</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/lib/tiktok-bridge.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        background: #121212;
+        color: #eee;
+        padding: 20px;
+      }
+      #log {
+        background: #000;
+        height: 300px;
+        overflow-y: scroll;
+        padding: 10px;
+        border-radius: 5px;
+        font-family: monospace;
+      }
+      .chat {
+        color: #4af;
+      }
+      .gift {
+        color: #f4a;
+        font-weight: bold;
+      }
+      .like {
+        color: #af4;
+      }
+      .share {
+        color: #fa4;
+      }
+      input {
+        padding: 8px;
+        border-radius: 4px;
+        border: 1px solid #444;
+        background: #222;
+        color: #fff;
+        width: 250px;
+      }
+      button {
+        padding: 8px 15px;
+        background: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>TikTok Bridge Debugger</h1>
+    <div style="margin-bottom: 20px">
+      <input
+        type="text"
+        id="username"
+        placeholder="Enter TikTok Username (e.g. jessicabalester)"
+      />
+      <button onclick="start()">Connect</button>
+    </div>
+    <div id="log"></div>
+
+    <script>
+      const logDiv = document.getElementById("log");
+
+      function addLog(msg, type = "") {
+        const entry = document.createElement("div");
+        entry.className = type;
+        entry.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        logDiv.prepend(entry);
+      }
+
+      function start() {
+        const username = document.getElementById("username").value.trim();
+        if (!username) return alert("Please enter a username");
+
+        addLog(`Connecting to ${username}...`);
+        TikTokBridge.connect(username);
+
+        TikTokBridge.on("connected", (data) =>
+          addLog(`SUCCESS: Joined room ${data.room}`, "like")
+        );
+
+        TikTokBridge.on("chat", (data) => {
+          addLog(`${data.user.nickname}: ${data.comment}`, "chat");
+        });
+
+        TikTokBridge.on("gift", (data) => {
+          addLog(
+            `GIFT: ${data.user.nickname} sent ${data.giftName} x${data.repeatCount}`,
+            "gift"
+          );
+        });
+
+        TikTokBridge.on("like", (data) => {
+          addLog(`${data.user.nickname} liked (+${data.likeCount})`, "like");
+        });
+
+        TikTokBridge.on("share", (data) => {
+          addLog(`${data.user.nickname} shared the live!`, "share");
+        });
+      }
+    </script>
+  </body>
+</html>

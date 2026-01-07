@@ -76,7 +76,12 @@
           <label class="form-label"> 🎯 Select Game for Stream </label>
           <div class="game-grid">
             <!-- Boss Raid Game Card -->
-            <div class="game-card selected" data-game="boss-raid">
+            <div
+              class="game-card selected"
+              data-game="boss-raid"
+              data-entry="overlay.html"
+              data-param="id"
+            >
               <span class="game-card-badge">HOT</span>
               <div class="game-card-icon">👹</div>
               <h3 class="game-card-title">Boss Raid</h3>
@@ -86,21 +91,33 @@
               </p>
             </div>
 
-            <!-- Coming Soon Card -->
-            <div class="game-card" style="opacity: 0.5; cursor: not-allowed">
-              <div class="game-card-icon">🏆</div>
-              <h3 class="game-card-title">Battle Royale</h3>
+            <!-- Onslaught! Arena Card -->
+            <div
+              class="game-card"
+              data-game="onslaught-arena"
+              data-entry="index.html"
+              data-param="username"
+            >
+              <span
+                class="game-card-badge"
+                style="background: var(--accent-cyan); color: #000"
+                >NEW</span
+              >
+              <div class="game-card-icon">⚔️</div>
+              <h3 class="game-card-title">Onslaught! Arena</h3>
               <p class="game-card-desc">
-                Coming Soon! Viewers battle each other for victory.
+                Classic arcade survival! Viewers control movement via chat:
+                "up", "left", etc. Small gifts trigger rapid fire bursts!
               </p>
             </div>
 
-            <!-- Coming Soon Card 2 -->
+            <!-- Future Expansion -->
             <div class="game-card" style="opacity: 0.5; cursor: not-allowed">
-              <div class="game-card-icon">🎰</div>
-              <h3 class="game-card-title">Lucky Wheel</h3>
+              <div class="game-card-icon">🧩</div>
+              <h3 class="game-card-title">Hextris</h3>
               <p class="game-card-desc">
-                Coming Soon! Lucky wheel for viewers.
+                Coming Soon! High-speed puzzle action controlled by chat
+                rotation.
               </p>
             </div>
           </div>

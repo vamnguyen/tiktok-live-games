@@ -26,7 +26,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // ==========================================
   // STATE
   // ==========================================
-  let selectedGame = "boss-raid"; // Default game
+  let selectedGame = "boss-raid";
+  let gameEntry = "overlay.html";
+  let gameParam = "id";
 
   // ==========================================
   // GAME SELECTION
@@ -40,7 +42,11 @@ document.addEventListener("DOMContentLoaded", () => {
       card.classList.add("selected");
       // Update state
       selectedGame = card.dataset.game;
-      console.log(`Selected game: ${selectedGame}`);
+      gameEntry = card.dataset.entry || "index.html";
+      gameParam = card.dataset.param || "id";
+      console.log(
+        `Selected game: ${selectedGame} (${gameEntry}, ${gameParam})`
+      );
     });
   });
 
@@ -80,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
      * - Username will be used as Room ID for Socket.io
      */
     const baseUrl = window.location.origin;
-    const overlayUrl = `${baseUrl}/games/${selectedGame}/overlay.html?id=${cleanUsername}`;
+    const overlayUrl = `${baseUrl}/games/${selectedGame}/${gameEntry}?${gameParam}=${cleanUsername}`;
 
     // Show output section
     outputUrl.value = overlayUrl;

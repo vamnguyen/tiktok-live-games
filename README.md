@@ -4,27 +4,29 @@ An open-source platform that creates interactive game overlays for TikTok Live s
 
 <img width="2938" height="1654" alt="image" src="https://github.com/user-attachments/assets/7fe6231f-8a9b-450b-8490-b38d775a0645" />
 
-
 ## ✨ Features
 
-- **Multi-tenant Architecture**: Multiple streamers can use the platform simultaneously with complete data isolation
-- **Real-time Interaction**: Viewers control the game through TikTok Live chat
-- **OBS/TikTok Studio Ready**: Transparent overlay designed for streaming software
-- **Gift Integration**: TikTok gifts trigger special in-game effects
-- **Extensible**: Easy to add new games
+- **Multi-tenant Architecture**: Multiple streamers can use the platform simultaneously.
+- **Generic Game Gateway**: Connect ANY HTML5 game to TikTok in minutes.
+- **Bridge SDK**: Lightweight client-side library for game developers.
+- **Gift Integration**: Automatic gift categorization (small/medium/large).
+- **OBS Ready**: Transparent overlays designed for streaming software.
 
 ## 🎯 Available Games
 
+### Onslaught! Arena ⚔️ (NEW)
+
+Classic arcade survival modded for TikTok.
+
+- **Controls**: Viewers type `up`, `down`, `left`, `right` to move the hero.
+- **Special**: Small gifts trigger rapid fire; Large gifts trigger ultimates.
+
 ### Boss Raid 👹
 
-Viewers team up to defeat a boss!
+Team-based boss battle.
 
-| Command    | Action                      |
-| ---------- | --------------------------- |
-| `join`     | Join the battle             |
-| `hit`      | Attack the boss             |
-| Small Gift | Heal the boss (troll mode!) |
-| Large Gift | Trigger ULTIMATE attack     |
+- **Commands**: `join`, `hit`.
+- **Gifts**: Heal or damage the boss.
 
 ## 🚀 Quick Start
 
@@ -218,6 +220,34 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Socket.io](https://socket.io/) - Real-time communication
 - Vietnamese Streamer Community 💖
 
+## 🛠️ The "Modding" Approach
+
+Instead of building games from scratch, you can "mod" existing HTML5 games using our **TikTok Bridge SDK**.
+
+### 1. Inject the SDK
+
+Add these to your game's `index.html`:
+
+```html
+<script src="/socket.io/socket.io.js"></script>
+<script src="/lib/tiktok-bridge.js"></script>
+```
+
+### 2. Connect and Listen
+
+Create a script (e.g., `tiktok-mod.js`) to map events to game functions:
+
+```javascript
+// The SDK auto-connects based on URL parameters (?username=...)
+TikTokBridge.on("chat", (data) => {
+  if (data.comment === "jump") myGame.player.jump();
+});
+
+TikTokBridge.on("gift", (data) => {
+  if (data.giftType === "large") myGame.useSuperPower();
+});
+```
+
 ---
 
-**Made with ❤️ for Vietnamese Streamers**
+**Made with ❤️ for the Global Streamer Community**

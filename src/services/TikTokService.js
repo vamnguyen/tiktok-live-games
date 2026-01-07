@@ -77,9 +77,14 @@ class TikTokService {
       });
 
       // ==========================================
-      // CHAT EVENT HANDLER
-      // Parse chat commands to trigger game events
+      // TIKTOK EVENT HANDLERS
+      // These handlers emit generic events that the
+      // TikTok Bridge SDK (client-side) can consume.
       // ==========================================
+
+      /**
+       * Handle Chat Messages
+       */
       connection.on("chat", (data) => {
         const message = data.comment?.toLowerCase().trim() || "";
         const user = {
@@ -90,35 +95,79 @@ class TikTokService {
 
         this.updateActivity(username);
 
-        // "join" command - Join the game
+        // 1. Emit generic event for tiktok-bridge.js
+        io.to(username).emit("tiktok_chat", {
+          user,
+          comment: message,
+          rawData: data,
+          timestamp: Date.now(),
+        });
+
+        // 2. Legacy/Specific command mappings (for backward compatibility)
         if (message === "join" || message === "thamgia") {
-          /**
-           * DATA ISOLATION:
-           * io.to(username) sends ONLY to this streamer's room
-           * Other streamers will NOT receive this event
-           */
-          io.to(username).emit("player_join", {
-            user: user,
-            timestamp: Date.now(),
-          });
+          io.to(username).emit("player_join", { user, timestamp: Date.now() });
           console.log(`[${username}] Player join: ${user.nickname}`);
         }
 
-        // "hit" command - Attack the boss
         if (message === "hit" || message === "danh" || message === "attack") {
           io.to(username).emit("player_attack", {
-            user: user,
-            damage: Math.floor(Math.random() * 10) + 5, // 5-15 damage
+            user,
+            damage: Math.floor(Math.random() * 10) + 5,
             timestamp: Date.now(),
           });
           console.log(`[${username}] Player attack: ${user.nickname}`);
         }
       });
 
-      // ==========================================
-      // GIFT EVENT HANDLER
-      // Categorize gifts to trigger different effects
-      // ==========================================
+      /**
+       * Handle Like Events
+       */
+      connection.on("like", (data) => {
+        const user = {
+          uniqueId: data.uniqueId,
+          nickname: data.nickname,
+          profilePictureUrl: data.profilePictureUrl,
+        };
+
+        this.updateActivity(username);
+
+        io.to(username).emit("tiktok_like", {
+          user,
+          likeCount: data.likeCount,
+          totalLikeCount: data.totalLikeCount,
+          timestamp: Date.now(),
+        });
+
+        console.log(
+          `[${username}] Like: ${data.likeCount} from ${user.nickname}`
+        );
+      });
+
+      /**
+       * Handle Share Events
+       */
+      connection.on("social", (data) => {
+        if (data.displayType === "pm_mt_msg_viewer_share") {
+          const user = {
+            uniqueId: data.uniqueId,
+            nickname: data.nickname,
+            profilePictureUrl: data.profilePictureUrl,
+          };
+
+          this.updateActivity(username);
+
+          io.to(username).emit("tiktok_share", {
+            user,
+            timestamp: Date.now(),
+          });
+
+          console.log(`[${username}] Share from ${user.nickname}`);
+        }
+      });
+
+      /**
+       * Handle Gift Events
+       */
       connection.on("gift", (data) => {
         const user = {
           uniqueId: data.uniqueId,
@@ -128,39 +177,40 @@ class TikTokService {
 
         this.updateActivity(username);
 
+        // Normalize gift data
         const giftValue = data.diamondCount || data.giftValue || 1;
         const giftName =
           data.giftName || data.giftDetails?.giftName || "Unknown Gift";
         const repeatCount = data.repeatCount || 1;
 
-        /**
-         * Gift categories:
-         * - small (< 10 coins): Heal or minor effect
-         * - medium (10-99 coins): Normal attack
-         * - large (100+ coins): Ultimate ability
-         */
-        let giftType = "small";
-        if (giftValue >= 100) {
-          giftType = "large";
-        } else if (giftValue >= 10) {
-          giftType = "medium";
-        }
+        // Categorize gifts for easier game logic
+        let giftType = "small"; // < 10 coins
+        if (giftValue >= 100) giftType = "large"; // 100+ coins
+        else if (giftValue >= 10) giftType = "medium"; // 10-99 coins
 
-        /**
-         * DATA ISOLATION:
-         * Send gift event ONLY to the relevant streamer's room
-         */
+        // Emit generic gift event
+        io.to(username).emit("tiktok_gift", {
+          user,
+          giftName,
+          giftValue,
+          repeatCount,
+          giftType,
+          rawData: data,
+          timestamp: Date.now(),
+        });
+
+        // Legacy event for Boss Raid compatibility
         io.to(username).emit("gift_received", {
-          user: user,
-          giftName: giftName,
-          giftValue: giftValue,
-          repeatCount: repeatCount,
-          giftType: giftType,
+          user,
+          giftName,
+          giftValue,
+          repeatCount,
+          giftType,
           timestamp: Date.now(),
         });
 
         console.log(
-          `[${username}] Gift: ${giftName} x${repeatCount} from ${user.nickname} (${giftType})`
+          `[${username}] Gift: ${giftName} x${repeatCount} (${giftType})`
         );
       });
 
